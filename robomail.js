@@ -34,8 +34,6 @@ const buildGraph = (edges) => {
 
 const roadGraph = buildGraph(roads);
 
-console.log(roadGraph);
-
 class VillageState {
   //village state includes the current place and collection of parcels
   constructor(place, parcels) {
@@ -43,8 +41,9 @@ class VillageState {
     this.parcels = parcels;
   }
 
+  //function to move along a road and update state
   move(destination) {
-    //checks to see if there is a road going from here to there
+    //checks to see if there is a road going from current location to destination
     if (!roadGraph[this.place].includes(destination)) {
       //if not a valid move, return previous state
       return this;
@@ -76,26 +75,93 @@ const runRobot = (state, robot, memory) => {
   }
 }
 
-//function that picks a random direction to go in
+//function that picks a random index from an array
 const randomPick = (array) => {
   let choice = Math.floor((Math.random() * array.length));
   return array[choice];
 }
 
-//robot that operates by going in a random direction (randomPick)
+//robot that operates by going in a random direction using randomPick
+//robots return the direction they've chosen to move
 const randomRobot = (state) => {
   return { direction: randomPick(roadGraph[state.place]) };
 }
 
+//method for randomly creating parcels for state to test the application
 VillageState.random = (parcelCount = 5) => {
   let parcels = [];
   for (let i = 0; i < parcelCount; i++) {
+    //pick a random location as the parcel's address
     let address = randomPick(Object.keys(roadGraph));
     let place;
+    //pick a random place as the parcel's destination, but not the same place it's coming from
     do {
       place = randomPick(Object.keys(roadGraph));
     } while (place == address);
     parcels.push({ place, address });
   }
+  console.log(parcels);
   return new VillageState("Post Office", parcels);
 };
+
+//testing out the random robot's delivery using random parcels
+// runRobot(VillageState.random(), randomRobot);
+
+/**
+ * ==========
+ * MAIL ROUTE
+ * ==========
+ */
+
+const mailRoute = [
+  "Alice's House", "Cabin", "Alice's House", "Bob's House", "Town Hall", "Daria's House", "Ernie's House", "Grete's House", "Shop", "Grete's House", "Farm", "Marketplace", "Post Office"
+];
+
+const routeRobot = (state, memory) => {
+  if (memory.length == 0) {
+    memory = mailRoute;
+  }
+  return { direction: memory[0], memory: memory.slice(1) };
+}
+
+// runRobot(VillageState.random(), routeRobot, []);
+
+/**
+ * ============
+ * PATH FINDING
+ * ============
+ */
+
+//params are the map, starting location, and destination
+const findRoute = (graph, from, to) => {
+
+  //where you currently are and where you've been along the way
+  let work = [{ at: from, route: [] }];
+
+  for (let i = 0; i < work.length; i++) {
+    let { at, route } = work[i];
+    for (let place of graph[at]) {
+      //if you're at the destination then add it to the route and return the route
+      if (place == to) return route.concat(place);
+      //if you haven't already been where you are, add it to the route and keep going
+      if (!work.some(w => w.at == place)) {
+        work.push({ at: place, route: route.concat(place) });
+      }
+    }
+  }
+}
+
+//robot that uses route finding to find the shortest route
+const goalOrientedRobot = ({ place, parcels }, route) => {
+  if (route.length == 0) {
+    let parcel = parcels[0];
+    if (parcel.place != place) {
+      route = findRoute(roadGraph, place, parcel.place);
+    } else {
+      route = findRoute(roadGraph, place, parcel.address);
+    }
+  }
+  return { direction: route[0], memory: route.slice(1) };
+}
+
+runRobot(VillageState.random(), goalOrientedRobot, []);
